@@ -1,55 +1,42 @@
-
-## 💡 Zastosowania projektu
-
+## 💡 Zastosowania projektu 💡
 Większość botów opartych na LLM gubi wątek w długich dyskusjach lub nie potrafi odnieść się do faktów sprzed tygodnia. Ten system rozwiązuje te problemy, oferując:
 
-*   **Wirtualne Panele Eksperckie**: Możesz stworzyć debatę, w której uczestniczą agenci o różnych rolach (np. Architekt IT, Specjalista ds. Bezpieczeństwa), wspólnie analizując Twój problem (np. planowaną migrację bazy danych) [1, 2].
+*   **Wirtualne Panele Eksperckie**: Możesz stworzyć debatę, w której uczestniczą agenci o różnych rolach (np. Architekt IT, Specjalista ds. Bezpieczeństwa), wspólnie analizując Twój problem (np. planowaną migrację bazy danych).
 *   **Dynamiczna Baza Wiedzy Projektowej**: Dzięki pamięci epizodycznej RAG, bot staje się "żywym" archiwum projektu. Pamięta każdą kluczową decyzję i fakt z poprzednich sesji, eliminując potrzebę przeszukiwania tysięcy wiadomości.
-*   **Weryfikacja Hipotez i Kontrargumentacja**: System pozwala na automatyczne generowanie kontrargumentów przez agentów, co pomaga wykryć luki w planach biznesowych lub technicznych jeszcze przed ich wdrożeniem.
-*   **Separacja Wiedzy (Multi-Tenancy)**: Możesz prowadzić wiele niezależnych projektów jednocześnie. Bot gwarantuje, że dane z "Projektu A" nigdy nie wyciekną do odpowiedzi w "Projekcie B".
+*   **Weryfikacja Hipotez i Kontrargumentacja**: System pozwala na automatyczne generowanie kontrargumentów przez agentów, co pomaga wykryć luki w planach biznesowych lub technicznych jeszcze przed ich wdrożeniem .
+*   **Separacja Wiedzy (Multi-Tenancy)**: Możesz prowadzić wiele niezależnych projektów jednocześnie. Bot gwarantuje, że dane z "Projektu A" nigdy nie wyciekną do odpowiedzi w "Projekcie B" .
 
-# Architektura systemu Debat Analitycznych w bazach wektorowych
+---
 
-Orkiestracja wielu agentów oraz system **RAG (Retrieval-Augmented Generation)** do prowadzenia merytorycznych debat i zarządzania wiedzą w czasie rzeczywistym.
-
-## Główne Cechy
+##  Główne Cechy
 *   **Architektura Multi-Agent**: System pozwala na interakcję z różnymi rolami agentów w ramach jednej debaty.
 *   **Pamięć Epizodyczna (RAG)**: Wykorzystanie bazy wektorowej do przechowywania i przeszukiwania kontekstu historycznego wszystkich wypowiedzi.
-*   **Mechanizm Multi-Tenancy**: Pełna separacja danych pomiędzy różnymi debatami dzięki filtrowaniu metadanych (Metadata Filtering).
+*   **Mechanizm Multi-Tenancy**: Pełna separacja danych dzięki filtrowaniu metadanych (Metadata Filtering).
 *   **Asynchroniczność**: Budowa oparta na `asyncio`, zapewniająca płynną obsługę wielu użytkowników jednocześnie.
 
-## Architektura Systemu
+## 🏗 Architektura Systemu
 
 ### 1. Zarządzanie Stanem (SQLite)
-Moduł odpowiada za trwałość sesji i strukturę biznesową projektów:
-*   **Tabela `debaty`**: Przechowuje UUID4 debaty, jej nazwę oraz znaczniki czasu.
-*   **Tabela `bot_state`**: Mapuje użytkowników Telegrama do ich aktywnych sesji.
+Moduł odpowiada za trwałość sesji i strukturę biznesową:
+*   **Tabela `debaty`**: Przechowuje UUID4 debaty, jej nazwę (np. "Migracja bazy danych") oraz znaczniki czasu.
+*   **Tabela `bot_state`**: Mapuje użytkowników Telegrama do ich aktywnych sesji, zapewniając trwałość po restarcie .
 
 ### 2. Silnik Wyszukiwania Semantycznego (ChromaDB)
-System pamięci długoterminowej bota .
-*   **Model Wektorowy**: `text-embedding-3-small` (1536 wymiarów), zoptymalizowany pod kątem polskiej terminologii technicznej.
-*   **Algorytm**: HNSW (Hierarchical Navigable Small World) dla błyskawicznego przeszukiwania poddrzew wektorów spełniających warunek `debata_id` .
-*   **Chunking**: Każda zwięzła odpowiedź agenta stanowi jeden integralny dokument (chunk).
+System pamięci długoterminowej bota:
+*   **Model Wektorowy**: `text-embedding-3-small` (1536 wymiarów), zoptymalizowany pod kątem polskiej terminologii technicznej .
+*   **Algorytm**: HNSW dla błyskawicznego przeszukiwania poddrzew wektorów spełniających warunek `debata_id` .
+*   **Chunking**: Każda zwięzła odpowiedź agenta stanowi jeden dokument (chunk), co upraszcza strukturę danych.
 
 ### 3. Orkiestracja Agentów i Prompt Engineering
-Sercem systemu jest model `gpt-4o-mini`, który przetwarza hybrydowy prompt użytkownika :
-*   **Hybrydowa Pamięć**: Łączy kontekst długoterminowy ([CONTEXT_LONG_TERM] z bazy RAG) z kontekstem krótkoterminowym ([CONTEXT_SHORT_TERM] – ostatnia wiadomość) 
-*   **Izolacja XML**: Dane w prompcie są separowane znacznikami XML, co zwiększa precyzję odpowiedzi
+Sercem systemu jest model `gpt-4o-mini`, który przetwarza hybrydowy prompt użytkownika:
+*   **Izolacja XML**: Dane w prompcie są separowane znacznikami (np. `<rag_retrieval>`, `<short_term_memory>`), co zwiększa precyzję odpowiedzi [1].
+*   **Instrukcje Ról**: Agenci są instruowani, aby odpowiadać krótko (max 3 zdania) i unikać powtarzania faktów już obecnych w pamięci.
 
 ### 4. Interfejs Telegram (python-telegram-bot)
-Zapewnia intuicyjne sterowanie za pomocą komend i przycisków:
-*   `/start` – inicjalizacja i instrukcja.
-*   `/nowa <nazwa>` – tworzenie nowej sesji debaty.
-*   `/list` – dynamiczna lista debat z interaktywnymi przyciskami `InlineKeyboardMarkup`.
-*   **Przepływ CallbackQuery**: Pozwala na dynamiczną zmianę widoku z listy debat na listę dostępnych agentów w ramach wybranego projektu
-
-## 🛠 Technologia
-*   **Language**: Python (Asyncio) 
-*   **LLM**: OpenAI GPT-4o-mini
-*   **Embeddings**: text-embedding-3-small
-*   **Vector DB**: ChromaDB
-*   **Relational DB**: SQLite 
-*   **Deployment**: Docker & Docker Compose
+*   **/start** – inicjalizacja i instrukcja.
+*   **/nowa <nazwa>** – tworzenie nowej sesji.
+*   **/list** – dynamiczna lista debat z interaktywnymi przyciskami .
+*   **Przepływ CallbackQuery**: Pozwala na dynamiczną zmianę widoku z listy debat na listę dostępnych agentów .
 
 ### Diagram przepływu danych:
 
