@@ -1,4 +1,13 @@
 
+## 💡 Zastosowania projektu
+
+Większość botów opartych na LLM gubi wątek w długich dyskusjach lub nie potrafi odnieść się do faktów sprzed tygodnia. Ten system rozwiązuje te problemy, oferując:
+
+*   **Wirtualne Panele Eksperckie**: Możesz stworzyć debatę, w której uczestniczą agenci o różnych rolach (np. Architekt IT, Specjalista ds. Bezpieczeństwa), wspólnie analizując Twój problem (np. planowaną migrację bazy danych) [1, 2].
+*   **Dynamiczna Baza Wiedzy Projektowej**: Dzięki pamięci epizodycznej RAG, bot staje się "żywym" archiwum projektu. Pamięta każdą kluczową decyzję i fakt z poprzednich sesji, eliminując potrzebę przeszukiwania tysięcy wiadomości.
+*   **Weryfikacja Hipotez i Kontrargumentacja**: System pozwala na automatyczne generowanie kontrargumentów przez agentów, co pomaga wykryć luki w planach biznesowych lub technicznych jeszcze przed ich wdrożeniem.
+*   **Separacja Wiedzy (Multi-Tenancy)**: Możesz prowadzić wiele niezależnych projektów jednocześnie. Bot gwarantuje, że dane z "Projektu A" nigdy nie wyciekną do odpowiedzi w "Projekcie B".
+
 # Architektura systemu Debat Analitycznych w bazach wektorowych
 
 Orkiestracja wielu agentów oraz system **RAG (Retrieval-Augmented Generation)** do prowadzenia merytorycznych debat i zarządzania wiedzą w czasie rzeczywistym.
@@ -42,10 +51,9 @@ Zapewnia intuicyjne sterowanie za pomocą komend i przycisków:
 *   **Relational DB**: SQLite 
 *   **Deployment**: Docker & Docker Compose
 
+### Diagram przepływu danych:
 
-#Diagram przepływu danych:
 
-USER<-->TelegramBot<-->DBs<-->LLM API
 ```mermaid
 sequenceDiagram
     autonumber
