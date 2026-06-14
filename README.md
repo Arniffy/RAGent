@@ -163,4 +163,4 @@ sequenceDiagram
     Note over O, LLM: KONIEC DEBATY
     O-->>O: [Przekazanie raportu do wysyłki w Telegramie i asynchronicznego zapisu]
 
-```RAGent
+```
