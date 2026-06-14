@@ -16,7 +16,7 @@ Większość botów opartych na LLM gubi wątek w długich dyskusjach lub nie po
 
 ## Architektura Systemu
 
-### 1. Zarządzanie Stanem (SQLite)
+### 1. Zarządzanie Stanem (postgreSQL)
 Moduł odpowiada za trwałość sesji i strukturę biznesową:
 *   **Tabela `debaty`**: Przechowuje UUID4 debaty, jej nazwę (np. "Migracja bazy danych") oraz znaczniki czasu.
 *   **Tabela `bot_state`**: Mapuje użytkowników Telegrama do ich aktywnych sesji, zapewniając trwałość po restarcie .
@@ -44,48 +44,47 @@ Sercem systemu jest model `gpt-4o-mini`, który przetwarza hybrydowy prompt uży
 ```mermaid
 sequenceDiagram
     autonumber
-    actor U as Użytkownik / Moderator
+    actor U as User
     participant TG as Telegram API
     participant B as Bot Core (Python)
-    participant SQL as SQLite (Meta DB)
+    participant SQL as PostgreSQL
     participant CH as ChromaDB (Vector DB)
     participant AI as OpenAI API (gpt-4o-mini)
 
-    %% Sekcja 1: Zarządzanie Debatami
     Note over U, SQL: FAZA A: Zarządzanie Sesjami i Menu
     U->>TG: Wpisanie komendy /list
     TG->>B: Przekazanie Update (Command)
     B->>SQL: SELECT id, nazwa FROM debaty
     SQL-->>B: Lista aktywnych projektów
     B->>TG: Wyświetlenie Inline Keyboards (Menu)
-    U->>TG: Kliknięcie przycisku "Debata X"
+    U->>TG: Kliknięcie "Debata X"
     TG->>B: CallbackQuery (wybierz_X)
     B->>SQL: UPDATE debaty SET updated_at = NOW() WHERE id = X
-    B-->>B: Zapisz stan: context.user_data['aktywna_debata'] = X
+    B-->>B: Zapisz stan w cache sesji
 
-    %% Sekcja 2: Wywołanie Agenta i RAG
-    Note over U, AI: FAZA B: Orkiestracja Hybrydowa RAG
-    U->>TG: Wywołanie agenta (np. Reply do wiadomości + /agent1)
-    TG->>B: Przekazanie wiadomości + Kontext konwersacji
-    B-->>B: Pobierz kontekst krótkoterminowy (Wiadomość z Reply)
+    Note over U, AI: FAZA B: Orkiestracja Hybrydowa RAG (Zoptymalizowana)
+    U->>TG: Wywołanie agenta (+ /agent1)
+    TG->>B: Przekazanie wiadomości + Kontext
     
-    %% Retrieval
-    B->>AI: Zmień pytanie użytkownika na wektor (text-embedding-3-small)
-    AI-->>B: Zwróć wektor (Embedding)
-    B->>CH: Szukaj najbliższych sąsiadów WHERE metadata.debata_id == X
-    CH-->>B: Zwróć pasujące dokumenty (Pamięć Długoterminowa)
+    %% Pobieranie kontekstu z deduplikacją
+    B-->>B: Pobierz historię (Short-Term) i usuń duplikaty z RAG
+    B->>AI: Embedding pytania (text-embedding-3-small)
+    AI-->>B: Wektor pytania
+    B->>CH: Search WHERE metadata.debata_id == X
+    CH-->>B: Kontekst z Pamięci Długoterminowej
     
-    %% Augmentation & Generation
-    B-->>B: Buduj potrójny Prompt (System + RAG + Short-Term History)
+    %% Generowanie odpowiedzi
+    B-->>B: Buduj Prompt (System + RAG + Clean History)
     B->>AI: Wywołanie ChatCompletion (gpt-4o-mini)
     AI-->>B: Zwróć wygenerowaną odpowiedź Agenta
-    
-    %% Ingest
-    B->>AI: Zamień nową odpowiedź agenta na wektor
-    AI-->>B: Zwróć wektor
-    B->>CH: Zapisz dokument z metadata: {"debata_id": X, "autor": "Agent1"}
-    
-    %% Odpowiedź do użytkownika
+
+    %% KLUCZOWA ZMIANA: Odpowiedź natychmiastowa (UX)
     B->>TG: Wyślij sformatowaną odpowiedź (Markdown)
-    TG-->>U: Wizualizacja odpowiedzi w bąbelku czatu
+    TG-->>U: Użytkownik widzi odpowiedź (brak latencji zapisu)
+
+    Note over B, CH: ASYNC: Pamięć Epizodyczna (Indeksowanie po wysłaniu)
+    B-->>B: Walidacja jakości odpowiedzi (anty-szum)
+    B->>AI: Zamień odpowiedź na wektor
+    AI-->>B: Wektor odpowiedzi
+    B->>CH: Zapisz do ChromaDB (metadata: debata_id, autor)
 ```
