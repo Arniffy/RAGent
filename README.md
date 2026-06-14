@@ -1,8 +1,9 @@
 # RAGent
-Scalable Multi-tenant Agentic RAG Technology
+System Debat Analitycznych w bazach wektorowych
+
 # Architektura Systemu - RAG & Telegram Bot
 
-Poniższy diagram przedstawia przepływ danych 
+Diagram przepływu danych:
 
 USER<-->TelegramBot<-->DBs<-->LLM API
 
