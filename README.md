@@ -1,3 +1,7 @@
+## Agentic Multi-Tenant RAG: 
+
+Status: Active Development
+
 ## 💡 Zastosowania projektu 💡
 Większość botów opartych na LLM gubi wątek w długich dyskusjach lub nie potrafi odnieść się do faktów sprzed tygodnia. Ten system rozwiązuje te problemy, oferując:
 
@@ -38,7 +42,7 @@ Sercem systemu jest model `gpt-4o-mini`, który przetwarza hybrydowy prompt uży
 *   **/list** – dynamiczna lista debat z interaktywnymi przyciskami .
 *   **Przepływ CallbackQuery**: Pozwala na dynamiczną zmianę widoku z listy debat na listę dostępnych agentów .
 
-### Diagram przepływu danych:
+### Diagramy przepływu danych:
 
 
 ```mermaid
@@ -49,7 +53,7 @@ sequenceDiagram
     participant B as Bot Core (Python)
     participant SQL as PostgreSQL
     participant CH as ChromaDB (Vector DB)
-    participant AI as OpenAI API (gpt-4o-mini)
+    participant AI as OpenAI API (Modele)
 
     Note over U, SQL: FAZA A: Zarządzanie Sesjami i Menu
     U->>TG: Wpisanie komendy /list
@@ -64,7 +68,7 @@ sequenceDiagram
 
     Note over U, AI: FAZA B: Orkiestracja Hybrydowa RAG (Zoptymalizowana)
     U->>TG: Wywołanie agenta (+ /agent1)
-    TG->>B: Przekazanie wiadomości + Kontext
+    TG->>B: Przekazanie wiadomości + Kontekst
     
     %% Pobieranie kontekstu z deduplikacją
     B-->>B: Pobierz historię (Short-Term) i usuń duplikaty z RAG
@@ -78,14 +82,85 @@ sequenceDiagram
     B->>AI: Wywołanie ChatCompletion (gpt-4o-mini)
     AI-->>B: Zwróć wygenerowaną odpowiedź Agenta
 
-    %% KLUCZOWA ZMIANA: Odpowiedź natychmiastowa (UX)
+    %% KLUCZOWA ZMIANA: UX na pierwszym miejscu
+    Note over U, B: ZERO LATENCY UX: Odpowiedź natychmiastowa
     B->>TG: Wyślij sformatowaną odpowiedź (Markdown)
-    TG-->>U: Użytkownik widzi odpowiedź (brak latencji zapisu)
+    TG-->>U: Użytkownik widzi odpowiedź (brak oczekiwania na bazę)
 
-    Note over B, CH: ASYNC: Pamięć Epizodyczna (Indeksowanie po wysłaniu)
-    B-->>B: Walidacja jakości odpowiedzi (anty-szum)
-    B->>AI: Zamień odpowiedź na wektor
-    AI-->>B: Wektor odpowiedzi
-    B->>CH: Zapisz do ChromaDB (metadata: debata_id, autor)
+    Note over B, CH: FAZA C (ASYNC): Walidacja i Pamięć Epizodyczna w tle
+    B-->>B: Deterministyczny filtr jakości (Anty-Szum)
+    
+    alt Odpowiedź wartościowa (Zatwierdzona)
+        B->>AI: Zamień odpowiedź na wektor
+        AI-->>B: Wektor odpowiedzi
+        B->>CH: Zapisz do ChromaDB (metadata: debata_id, autor)
+    else Odpowiedź to szum (Odrzucona)
+        B-->>B: Zignoruj (ochrona przed zanieczyszczeniem bazy wektorowej)
+    end
 ```
 
+
+
+
+
+
+
+
+
+
+```mermaid
+
+sequenceDiagram
+    autonumber
+    
+    participant O as Orkiestrator (Główny Sędzia)
+    
+    %% Bezpieczny, przezroczysty kolor dla grupy
+    box rgba(128, 128, 128, 0.2) Środowisko Agentowe
+        participant A1 as Agent Analityk (Proposer)
+        participant A2 as Agent Krytyk (Reviewer)
+    end
+    
+    participant CH as ChromaDB (Wektory)
+    participant LLM as OpenAI API
+
+    Note over O, LLM: START DEBATY (Kontekst: Zapytanie Użytkownika)
+    
+    O->>A1: Zlecenie: "Przygotuj wstępną analizę"
+    
+    %% Faza Badawcza Agenta 1
+    A1->>CH: Szukaj faktów (RAG - WHERE tenant_id = X)
+    CH-->>A1: Wyciągnięte dokumenty
+    A1->>LLM: Generuj Draft v1 (System Prompt + Dokumenty)
+    LLM-->>A1: Wstępna Odpowiedź (Draft v1)
+    A1->>O: Przekazanie Draftu v1
+    
+    %% Zamknięta Pętla Debaty
+    loop Sesja Debaty (Max 3 Iteracje)
+        O->>A2: Zlecenie: "Zweryfikuj Draft vN na podstawie faktów"
+        A2->>LLM: Analiza krytyczna (Logika + Zgodność z RAG)
+        LLM-->>A2: Raport z błędów / Ocena
+        A2->>O: Wynik audytu (Uwagi Krytyka)
+        
+        alt Pełna zgoda (Brak uwag)
+            %% Poprawiony blok break - akcja jest wewnątrz
+            break Konsensus osiągnięty
+                O-->>O: Przerwanie pętli (Early Exit)
+            end
+        else Brak zgody (Wymagane poprawki)
+            O->>A1: Zlecenie: "Popraw błędy na podstawie uwag Krytyka"
+            A1->>LLM: Generuj nową wersję (Draft vN+1)
+            LLM-->>A1: Poprawiona odpowiedź
+            A1->>O: Przekazanie zaktualizowanego Draftu
+        end
+    end
+    
+    Note over O, LLM: FAZA PODSUMOWANIA (Forced Resolution)
+    O-->>O: Kompilacja transkrypcji debaty (Zapisy z iteracji)
+    O->>LLM: Wywołanie jako Sędzia: "Zbuduj finalne podsumowanie i wskaż ostateczne fakty"
+    LLM-->>O: Ostateczny Raport (Wnioski z debaty)
+    
+    Note over O, LLM: KONIEC DEBATY
+    O-->>O: [Przekazanie raportu do wysyłki w Telegramie i asynchronicznego zapisu]
+
+```RAGent
