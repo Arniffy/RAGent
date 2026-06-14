@@ -14,7 +14,7 @@ Większość botów opartych na LLM gubi wątek w długich dyskusjach lub nie po
 *   **Mechanizm Multi-Tenancy**: Pełna separacja danych dzięki filtrowaniu metadanych (Metadata Filtering).
 *   **Asynchroniczność**: Budowa oparta na `asyncio`, zapewniająca płynną obsługę wielu użytkowników jednocześnie.
 
-## 🏗 Architektura Systemu
+## Architektura Systemu
 
 ### 1. Zarządzanie Stanem (SQLite)
 Moduł odpowiada za trwałość sesji i strukturę biznesową:
