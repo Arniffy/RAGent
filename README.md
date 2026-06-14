@@ -88,3 +88,4 @@ sequenceDiagram
     AI-->>B: Wektor odpowiedzi
     B->>CH: Zapisz do ChromaDB (metadata: debata_id, autor)
 ```
+
